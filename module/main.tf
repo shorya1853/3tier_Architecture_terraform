@@ -3,7 +3,7 @@ resource "aws_vpc" "main" {
   
 
   tags = {
-    Name = "tera-vpc"
+    Name = var.vpc_name
   }
 }
 
@@ -12,7 +12,7 @@ resource "aws_subnet" "private-subnet" {
   cidr_block = var.private_sub_cidr_block
 
   tags = {
-    Name = "private-subnet"
+    Name = "private-subnet${var.subnet_name}"
   }
 }
 
@@ -21,7 +21,7 @@ resource "aws_subnet" "public-subnet" {
   cidr_block = var.public_sub_cidr_block
 
   tags = {
-    Name = "public-subnet"
+    Name = "public-subnet${var.subnet_name}"
   }
 }
 
@@ -81,7 +81,7 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
-data "aws_instance_type_offering" "t2_micro" {
+data "aws_ec2_instance_type_offerings" "t2_micro" {
   filter {
     name   = "instance-type"
     values = ["t2.micro"]
@@ -99,7 +99,7 @@ resource "aws_instance" "web" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = "t2.micro"
   subnet_id = aws_subnet.public-subnet.id
-  availability_zone = data.aws_instance_type_offering.t2_micro.location
+  availability_zone = element(data.aws_ec2_instance_type_offerings.t2_micro.locations, 0)
 
   tags = {
     Name = "public_sub_ec2"
@@ -110,7 +110,7 @@ resource "aws_instance" "db" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = "t2.micro"
   subnet_id = aws_subnet.private-subnet.id
-  availability_zone = data.aws_instance_type_offering.t2_micro.location
+  availability_zone = element(data.aws_ec2_instance_type_offerings.t2_micro.locations, 0)
 
   tags = {
     Name = "private_sub_ec2"
