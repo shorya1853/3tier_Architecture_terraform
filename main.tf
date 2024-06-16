@@ -1,70 +1,59 @@
-module "vpc-ap-south-1" {
-  source = "terraform-aws-modules/vpc/aws"
 
-  name = "Testing-env"
-  cidr = "10.0.0.0/16"
-
-  azs             = ["ap-south-1a", "ap-south-1b"]
-  public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
-  private_subnets = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24", "10.0.104.0/24"]
+resource "aws_vpc" "vpc-ap-south-1" {
+  cidr_block = var.vpc_cidr
+  enable_dns_support = true
 
   tags = {
-    Terraform   = "true"
-    Environment = "dev"
+    Name = "my-vpc"
   }
 }
+resource "aws_route_table" "private_route_table" {
+  count = 3
+  vpc_id = aws_vpc.vpc-ap-south-1.id
+
+  tags = {
+    Name = format("private-route-table-%d", count.index)
+  }
+}
+
+resource "aws_subnet" "private_subnet" {
+  count = var.counts
+  cidr_block = cidrsubnet(aws_vpc.vpc-ap-south-1.cidr_block, 8, count.index)
+  vpc_id     = aws_vpc.vpc-ap-south-1.id
+  availability_zone = var.availability_zones[count.index % length(var.availability_zones)]
+
+  tags = {
+    Name = format("private-subnet-%d", count.index)
+  }
+}
+
+resource "aws_route_table_association" "name" {
+  count = var.counts
+  subnet_id = aws_subnet.private_subnet[count.index].id
+  route_table_id = aws_route_table.private_route_table[count.index % 3].id
+}
+
 resource "aws_vpc_endpoint" "s3" {
   tags = {
     "Name": "Testing endpoint"
   }
-  vpc_id       = module.vpc-ap-south-1.vpc_id
-  service_name = "com.amazonaws.ap-south-1.s3"
+  vpc_id       = aws_vpc.vpc-ap-south-1.id
+  service_name = var.service_name
 }
 
 resource "aws_vpc_endpoint_route_table_association" "endpoint_route_assoc" {
-  route_table_id =  module.vpc-ap-south-1.private_route_table_ids
+  route_table_id =  aws_route_table.private_route_table[0].id
   vpc_endpoint_id = aws_vpc_endpoint.s3.id
-}
-
-
-
-data "aws_s3_bucket" "example" {
-  bucket = "saan3"
 }
 
 resource "aws_s3_access_point" "s3-access_point" {
   vpc_configuration {
-    vpc_id = module.vpc-ap-south-1.vpc_id
+    vpc_id = aws_vpc.vpc-ap-south-1.id
   }
-  bucket = "saanviaws2"
+  bucket = var.s3_bucket
   name   = "s3accesspoint"
 
 
-  depends_on = [module.vpc-ap-south-1]
-  # VPC must be specified for S3 on Outposts
+  depends_on = [aws_vpc.vpc-ap-south-1]
   
 }
-
-# module "us-west-1-vpc" {
-#   source = "terraform-aws-modules/vpc/aws"
-
-#   name = "App-env"
-#   cidr = "10.0.0.0/16"
-
-#   azs             = ["eu-west-1a", "eu-west-1b"]
-#   private_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
-#   public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
-
-# azs             = ["ap-south-1a", "ap-south-1b"]
-# public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
-# private_subnets = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24", "10.0.104.0/24"]
-
-#   tags = {
-#     Terraform = "true"
-#     Environment = "dev"
-#   }
-#   providers = {
-#     aws = aws.us-west-1
-#   }
-# }
-
